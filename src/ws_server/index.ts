@@ -3,10 +3,12 @@ import {randomUUID} from 'crypto';
 import players from '../db/players';
 import rooms from '../db/rooms';
 
+const clients = {};
+const games = {};
+
 export const webSocketServer = (port: number) => {
     const wss = new WebSocketServer({port});
     console.log(`wss server starts ${port}`);
-    const clients = {};
 
     wss.on('connection', (ws: WebSocket & { id: string }) => {
         const id = randomUUID();
@@ -33,7 +35,9 @@ export const webSocketServer = (port: number) => {
 export const handleRequest = (type) => {
     return {
         ['reg']: (ws, request) => handleRegRequest(ws, request),
-        ['create_room']: (ws, request) => handleCreateRoomRequest(ws, request)
+        ['create_room']: (ws, request) => handleCreateRoomRequest(ws, request),
+        ['add_user_to_room']: (ws, request) => addUserToRoomRequest(ws, request),
+        ['add_ships']: (ws, request) => addShipsRequest(ws, request)
     }[type];
 };
 
@@ -146,6 +150,66 @@ const updateWinners = (ws) => {
         data: JSON.stringify(winners),
         id: 0
     }));
+};
+
+const addUserToRoomRequest = (ws, request) => {
+    console.log('addUserToRoomRequest', request);
+    const data = JSON.parse(request.data);
+    console.log('data', request.data);
+    const player = players.getByClientId(ws.id);
+    rooms.addPlayer(player, data.indexRoom);
+    console.log('rooms', rooms);
+
+    updateRoom(ws);
+
+    if (player) {
+
+        const game = {id: 0};
+        games[game.id] = game;
+
+        for (const id in clients) {
+            clients[id].send(JSON.stringify({
+                type: 'create_game',
+                data: JSON.stringify({
+                    idGame: game,
+                    idPlayer: player.id
+                }),
+                id: 0
+            }));
+        }
+    }
+
+
+};
+
+const addShipsRequest = (_, request) => {
+    console.log('addShipsRequest', request);
+    // const data = JSON.parse(request.data);
+    // console.log('data', request.data);
+    // const player = players.getByClientId(ws.id);
+    // rooms.addPlayer(player, data.indexRoom);
+    // console.log('rooms', rooms);
+    //
+    // updateRoom(ws);
+    //
+    // if (player) {
+    //
+    //     const game = {id: 0};
+    //     games[game.id] = game;
+    //
+    //     for (const id in clients) {
+    //         clients[id].send(JSON.stringify({
+    //             type: 'create_game',
+    //             data: JSON.stringify({
+    //                 idGame: game,
+    //                 idPlayer: player.id
+    //             }),
+    //             id: 0
+    //         }));
+    //     }
+    // }
+
+
 };
 
 

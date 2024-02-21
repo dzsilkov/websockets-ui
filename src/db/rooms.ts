@@ -23,6 +23,15 @@ export class Rooms {
         return room;
     }
 
+    addPlayer(player: Player | null, roomId: number) {
+        let room = this.get(roomId);
+
+        if (room && player) {
+            room = {...room, players: [...room.players, player]};
+            this.rooms.set(roomId, <Room>room);
+        }
+    }
+
     get(id: number): Room | null {
         return this.rooms.get(id) ?? null;
     }
