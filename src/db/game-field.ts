@@ -16,8 +16,8 @@ export const addShips = (ships: Ship[]): string[][] => {
                 // board[x][i] = '1';
 
                 board[x][i] = {
-                    row: x,
-                    col: y,
+                    x,
+                    y,
                     rowCount: length,
                     colCount: 1,
                     type: ship.type,
@@ -28,8 +28,8 @@ export const addShips = (ships: Ship[]): string[][] => {
                 // @ts-ignore: Unreachable code error
                 // board[i][y] = '1';
                 board[i][y] = {
-                    row: x,
-                    col: y,
+                    x,
+                    y,
                     rowCount: 1,
                     colCount: length,
                     type: ship.type,

@@ -266,29 +266,88 @@ const attackStatusGet = (request): AttackStatus => {
     const {players: gamePlayers} = games[gameId];
     const enemyKey = Object.keys(gamePlayers).filter(key => key !== indexPlayer.toString());
     const {board} = gamePlayers[enemyKey];
-    let cell = board[x][y];
-    console.log(board);
-    if (cell === '-') {
+    if (board[x][y] === '-') {
         return AttackStatus.Miss;
     } else {
-        cell = {
-            ...cell,
+        board[x][y] = {
+            ...board[x][y],
             attackStatus: AttackStatus.Shot
-        }
+        };
         const ship = [];
-        console.log('cell',cell)
-        for (let i = cell.row; i < cell.rowCount; i++) {
-            for (let j = cell.col; j < cell.colCount; j++) {
+        console.log('cell', board[x][y]);
+        let cell = board[x][y];
+        for (let i = cell.x; i < cell.x + cell.colCount; i++) {
+            for (let j = cell.y; j < cell.y + cell.rowCount; j++) {
                 // @ts-ignore: Unreachable code error
-               ship.push(board[i][j]);
+                ship.push({
+                        ...board[i][j],
+                        x: i,
+                        y: j,
+                        relatedCells: {x: i - 1, y: j - 1, colCount: 3, rowCount: 3}
+                    },
+                );
             }
         }
 
-        console.log('ship',ship)
+        console.log('ship', ship);
+
+        if (ship.every(({attackStatus}) => attackStatus === AttackStatus.Shot)) {
+            for (const id in clients) {
+                const player = players.getByClientId(id);
+
+                if (player) {
+
+                    ship.forEach(({x, y}) => {
+                        clients[id].send(JSON.stringify({
+                            type: CommandsType.Attack,
+                            data: JSON.stringify({
+                                    position:
+                                        {
+                                            x,
+                                            y,
+                                        },
+                                    currentPlayer: indexPlayer,
+                                    status: AttackStatus.Killed,
+                                }
+                            ),
+                            id: 0
+                        }));
+                    });
+
+                    ship.forEach(({relatedCells: {x, y, rowCount, colCount}}) => {
+                        const colEnd = x + colCount > 10 ? 10 : x + colCount;
+                        const rowEnd = y + rowCount > 10 ? 10 : y + rowCount;
+                        for (let i = x; i < colEnd; i++) {
+                            if (i >= 0) {
+                                for (let j = y; j < rowEnd; j++) {
+                                    if (j >= 0 && board[i][j] === '-') {
+                                        clients[id].send(JSON.stringify({
+                                            type: CommandsType.Attack,
+                                            data: JSON.stringify({
+                                                    position:
+                                                        {
+                                                            x: i,
+                                                            y: j,
+                                                        },
+                                                    currentPlayer: indexPlayer,
+                                                    status: AttackStatus.Miss,
+                                                }
+                                            ),
+                                            id: 0
+                                        }));
+                                    }
+                                }
+                            }
+
+                        }
+                    });
+                }
+            }
+            return AttackStatus.Killed;
+        }
 
         return AttackStatus.Shot;
     }
-
 
 
 };

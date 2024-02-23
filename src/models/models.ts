@@ -61,8 +61,8 @@ export type Ship = {
 }
 
 export type BoardShip = {
-    row: number,
-    col: number,
+    x: number,
+    y: number,
     rowCount,
     colCount,
     type: ShipType,
