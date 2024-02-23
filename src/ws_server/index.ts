@@ -2,6 +2,8 @@ import {WebSocket, WebSocketServer} from 'ws';
 import {randomUUID} from 'crypto';
 import players from '../db/players';
 import rooms from '../db/rooms';
+import {AttackStatus, CommandsType} from '../models/models';
+import {createBoard} from '../db/game-field';
 
 const clients = {};
 const games = {};
@@ -34,10 +36,11 @@ export const webSocketServer = (port: number) => {
 
 export const handleRequest = (type) => {
     return {
-        ['reg']: (ws, request) => handleRegRequest(ws, request),
-        ['create_room']: (ws, request) => handleCreateRoomRequest(ws, request),
-        ['add_user_to_room']: (ws, request) => addUserToRoomRequest(ws, request),
-        ['add_ships']: (ws, request) => addShipsRequest(ws, request)
+        [CommandsType.Reg]: (ws, request) => handleRegRequest(ws, request),
+        [CommandsType.CreateRoom]: (ws, request) => handleCreateRoomRequest(ws, request),
+        [CommandsType.AddUserToRoom]: (ws, request) => addUserToRoomRequest(ws, request),
+        [CommandsType.AddShips]: (ws, request) => addShipsRequest(ws, request),
+        [CommandsType.Attack]: (ws, request) => attackRequest(ws, request)
     }[type];
 };
 
@@ -72,7 +75,7 @@ export const handleRegRequest = (ws, request) => {
     }
 
     const responseData = {
-        type: 'reg',
+        type: CommandsType.Reg,
         data: JSON.stringify(res),
         id: 0
     };
@@ -86,28 +89,9 @@ export const handleRegRequest = (ws, request) => {
 
 export const handleCreateRoomRequest = (ws, request) => {
     console.log(request);
-    // const data = JSON.parse(request.data);
-    // console.log(data);
     rooms.add([players.getByClientId(ws.id)]);
-
-
-    // const isPlayerExist = rooms.isPlayerExist(data);
-    // rooms.add(data);
-    // const responseData = {
-    //     type: "add_user_to_room",
-    //     data:
-    //         {
-    //             indexRoom: 0,
-    //         },
-    //     id: 0,
-    // };
-    //
-    // ws.send(JSON.stringify(responseData));
-
-    // console.log(JSON.parse(request.data));
     updateRoom(ws);
     updateWinners(ws);
-    console.log(rooms);
 };
 
 const updateRoom = (ws) => {
@@ -115,7 +99,7 @@ const updateRoom = (ws) => {
     console.log('availableRooms', availableRooms);
     if (availableRooms.length) {
         ws.send(JSON.stringify({
-            type: 'update_room',
+            type: CommandsType.UpdateRoom,
             data: JSON.stringify(availableRooms.map(room => {
                 console.log('available_players', room.players);
                 const roomUsers = room.players.map(player => ({
@@ -130,9 +114,10 @@ const updateRoom = (ws) => {
             })),
             id: 0
         }));
+
     } else {
         ws.send(JSON.stringify({
-            type: 'update_room',
+            type: CommandsType.UpdateRoom,
             data: JSON.stringify({
                 roomId: -1,
                 roomUser: [],
@@ -146,11 +131,12 @@ const updateRoom = (ws) => {
 const updateWinners = (ws) => {
     const winners = [];
     ws.send(JSON.stringify({
-        type: 'update_winners',
+        type: CommandsType.UpdateWinners,
         data: JSON.stringify(winners),
         id: 0
     }));
 };
+
 
 const addUserToRoomRequest = (ws, request) => {
     console.log('addUserToRoomRequest', request);
@@ -162,52 +148,147 @@ const addUserToRoomRequest = (ws, request) => {
 
     updateRoom(ws);
 
-    if (player) {
 
-        const game = {id: 0};
-        games[game.id] = game;
+    let gameId = 0;
+    const game = {id: gameId, players: {}};
+    games[game.id] = game;
+    gameId++;
 
-        for (const id in clients) {
+    for (const id in clients) {
+        const player = players.getByClientId(id);
+        if (player) {
             clients[id].send(JSON.stringify({
-                type: 'create_game',
+                type: CommandsType.CreateGame,
                 data: JSON.stringify({
-                    idGame: game,
+                    idGame: game.id,
                     idPlayer: player.id
                 }),
                 id: 0
             }));
+        }
+
+    }
+};
+
+const addShipsRequest = (_, request) => {
+    console.log('addShipsRequest', request);
+    const data = JSON.parse(request.data);
+    console.log('data', data);
+
+    const game = games[data.gameId];
+    const gamePlayers = game.players;
+
+    if (Object.keys(gamePlayers).length <= 2) {
+        gamePlayers[data.indexPlayer] = {...data, board: createBoard(data.ships)};
+
+        if (Object.keys(gamePlayers).length === 2) {
+            for (const id in clients) {
+                const player = players.getByClientId(id);
+
+                if (player) {
+                    const {ships} = gamePlayers[player.id];
+                    clients[id].send(JSON.stringify({
+                        type: CommandsType.StartGame,
+                        data: JSON.stringify({
+                                ships,
+                                currentPlayerIndex: player.id,
+                            }
+                        ),
+                        id: 0
+                    }));
+                }
+            }
+
+            for (const id in clients) {
+                const player = players.getByClientId(id);
+
+                if (player) {
+                    clients[id].send(JSON.stringify({
+                        type: CommandsType.Turn,
+                        data: JSON.stringify({
+                                currentPlayerIndex: 1,
+                            }
+                        ),
+                        id: 0
+                    }));
+                }
+            }
+
         }
     }
 
 
 };
 
-const addShipsRequest = (_, request) => {
-    console.log('addShipsRequest', request);
-    // const data = JSON.parse(request.data);
-    // console.log('data', request.data);
-    // const player = players.getByClientId(ws.id);
-    // rooms.addPlayer(player, data.indexRoom);
-    // console.log('rooms', rooms);
-    //
-    // updateRoom(ws);
-    //
-    // if (player) {
-    //
-    //     const game = {id: 0};
-    //     games[game.id] = game;
-    //
-    //     for (const id in clients) {
-    //         clients[id].send(JSON.stringify({
-    //             type: 'create_game',
-    //             data: JSON.stringify({
-    //                 idGame: game,
-    //                 idPlayer: player.id
-    //             }),
-    //             id: 0
-    //         }));
-    //     }
-    // }
+export const attackRequest = (_, request) => {
+    const data = JSON.parse(request.data);
+    const {x, y, indexPlayer} = data;
+    for (const id in clients) {
+        const player = players.getByClientId(id);
+
+        if (player) {
+
+            clients[id].send(JSON.stringify({
+                type: CommandsType.Attack,
+                data: JSON.stringify({
+                        position:
+                            {
+                                x,
+                                y,
+                            },
+                        currentPlayer: indexPlayer,
+                        status: attackStatusGet(request),
+                    }
+                ),
+                id: 0
+            }));
+        }
+    }
+
+    for (const id in clients) {
+        const player = players.getByClientId(id);
+
+        if (player) {
+            clients[id].send(JSON.stringify({
+                type: CommandsType.Turn,
+                data: JSON.stringify({
+                        currentPlayerIndex: 1,
+                    }
+                ),
+                id: 0
+            }));
+        }
+    }
+};
+
+const attackStatusGet = (request): AttackStatus => {
+    const {x, y, gameId, indexPlayer} = JSON.parse(request.data);
+    const {players: gamePlayers} = games[gameId];
+    const enemyKey = Object.keys(gamePlayers).filter(key => key !== indexPlayer.toString());
+    const {board} = gamePlayers[enemyKey];
+    let cell = board[x][y];
+    console.log(board);
+    if (cell === '-') {
+        return AttackStatus.Miss;
+    } else {
+        cell = {
+            ...cell,
+            attackStatus: AttackStatus.Shot
+        }
+        const ship = [];
+        console.log('cell',cell)
+        for (let i = cell.row; i < cell.rowCount; i++) {
+            for (let j = cell.col; j < cell.colCount; j++) {
+                // @ts-ignore: Unreachable code error
+               ship.push(board[i][j]);
+            }
+        }
+
+        console.log('ship',ship)
+
+        return AttackStatus.Shot;
+    }
+
 
 
 };
