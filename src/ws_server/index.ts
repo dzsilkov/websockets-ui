@@ -220,9 +220,18 @@ const addShipsRequest = (_, request) => {
 
 };
 
-export const attackRequest = (_, request) => {
-    const data = JSON.parse(request.data);
-    const {x, y, indexPlayer} = data;
+export const attackRequest = (ws, request) => {
+    const {x, y, gameId, indexPlayer} = JSON.parse(request.data);
+    const {players: gameP} = games[gameId];
+    const enemyKey = Object.keys(gameP).filter(key => key !== indexPlayer.toString());
+    const {board: {board}} = gameP[enemyKey];
+
+    if (board[x][y] === 'o' || board[x][y].attackStatus === AttackStatus.Shot) {
+        return;
+    }
+
+    const statusAttack = attackStatusGet(request);
+
     for (const id in clients) {
         const player = players.getByClientId(id);
 
@@ -237,12 +246,37 @@ export const attackRequest = (_, request) => {
                                 y,
                             },
                         currentPlayer: indexPlayer,
-                        status: attackStatusGet(request),
+                        status: statusAttack,
                     }
                 ),
                 id: 0
             }));
         }
+    }
+
+
+
+    const game = games[gameId];
+    const gamePlayers = game.players;
+
+    if (checkWinner(gamePlayers[indexPlayer].board)) {
+        for (const id in clients) {
+            const player = players.getByClientId(id);
+
+            if (player) {
+
+                clients[id].send(JSON.stringify({
+                    type: CommandsType.Finish,
+                    data: JSON.stringify({
+                            winPlayer: indexPlayer
+                        }
+                    ),
+                    id: 0
+                }));
+            }
+        }
+
+        updateWinners(ws);
     }
 
     for (const id in clients) {
@@ -265,8 +299,10 @@ const attackStatusGet = (request): AttackStatus => {
     const {x, y, gameId, indexPlayer} = JSON.parse(request.data);
     const {players: gamePlayers} = games[gameId];
     const enemyKey = Object.keys(gamePlayers).filter(key => key !== indexPlayer.toString());
-    const {board} = gamePlayers[enemyKey];
+    const {board: {board}} = gamePlayers[enemyKey];
+
     if (board[x][y] === '-') {
+        board[x][y] = 'o';
         return AttackStatus.Miss;
     } else {
         board[x][y] = {
@@ -343,6 +379,7 @@ const attackStatusGet = (request): AttackStatus => {
                     });
                 }
             }
+            gamePlayers[indexPlayer].board.shipCount--;
             return AttackStatus.Killed;
         }
 
@@ -351,5 +388,7 @@ const attackStatusGet = (request): AttackStatus => {
 
 
 };
+
+const checkWinner = (board) => board.shipCount === 0;
 
 

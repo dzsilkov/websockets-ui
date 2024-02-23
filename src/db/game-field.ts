@@ -1,6 +1,6 @@
 import {Ship, ShipDirection} from '../models/models';
 
-export const createBoard = (ships: Ship[]): string[][] => addShips(ships);
+export const createBoard = (ships: Ship[]) => ({board: addShips(ships), shipCount: 10});
 
 export const addShips = (ships: Ship[]): string[][] => {
     const fieldSize = 10;
