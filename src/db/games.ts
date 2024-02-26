@@ -1,18 +1,8 @@
 import {Game} from '../models/models';
 
 export class Games {
-    // private players: Map<number, number> = new Map();
     private games: Map<number, Game> = new Map();
     private countId = 0;
-
-    private static instance?: Games;
-
-    constructor() {
-        if (!Games.instance) {
-            Games.instance = this;
-        }
-        return Games.instance;
-    }
 
     get(id: number): Game {
         const game = this.games.get(id);
@@ -20,6 +10,10 @@ export class Games {
             throw new Error('game doesn\'t exist');
         }
         return game;
+    }
+
+    get lastIndexId(): number {
+        return this.countId;
     }
 
     createGame(roomId: number): Game {
@@ -32,7 +26,3 @@ export class Games {
         this.games.delete(roomId);
     }
 }
-
-const instance = new Games();
-
-export default instance;

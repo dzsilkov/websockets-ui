@@ -1,22 +1,12 @@
 import {Player, Room} from '../models/models';
 
 export class Rooms {
-    // private players: Map<number, number> = new Map();
     private rooms: Map<number, Room> = new Map();
     private countId = 0;
 
-    private static instance?: Rooms;
-
-    constructor() {
-        if (!Rooms.instance) {
-            Rooms.instance = this;
-        }
-        return Rooms.instance;
-    }
-
     createRoom(player: Player): Room {
         if (this.playerCreatesRoom(player)) {
-            throw new Error('Player already have created room');
+            throw new Error('Player already has created room');
         }
 
         const room: Room = <Room>{id: this.countId++, players: [player]};
@@ -34,7 +24,9 @@ export class Rooms {
         if (room) {
             room = {...room, players: [...room.players, player]};
             this.rooms.set(roomId, <Room>room);
+
         }
+
     }
 
     get(id: number): Room | null {
@@ -72,7 +64,3 @@ export class Rooms {
         this.rooms.delete(roomId);
     }
 }
-
-const instance = new Rooms();
-
-export default instance;

@@ -4,18 +4,9 @@ export class Players {
     private players: Map<string, Player> = new Map();
     private countId = 0;
 
-    private static instance?: Players;
-
-    constructor() {
-        if (!Players.instance) {
-            Players.instance = this;
-        }
-        return Players.instance;
-    }
-
     add({name, password}: PlayerDto, ws): Player {
         console.log(name, password);
-        const player = {name, password, id: this.countId++, clientId: ws.id, wins: 0};
+        const player = {name, password, id: this.countId++, clientId: ws.id, wins: 0, client: ws};
         this.players.set(name, player);
 
         return player;
@@ -29,16 +20,14 @@ export class Players {
         return this.players.has(name) && this.players.get(name)?.password === password;
     }
 
-    getByClientId(id: string): Player | null {
+    getByClientId(id: string): Player {
+
+
         for (const player of this.players.values()) {
             if (player.clientId === id) {
                 return player;
             }
         }
-        return null;
+        throw new Error('Player already has created room');
     }
 }
-
-const instance = new Players();
-
-export default instance;

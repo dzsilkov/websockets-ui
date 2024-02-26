@@ -4,8 +4,9 @@
     "description": "Template for the WebSocket remote control task",
     "main": "index.ts",
     "scripts": {
-        "start": "node ./index.ts",
+        "start": "npm run build && node dist/index.js",
         "start:dev": "nodemon",
+        "build": "webpack --mode production",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "Andrei Auchynnikau",
@@ -31,7 +32,8 @@
         "ts-node-dev": "^2.0.0",
         "tsx": "^4.7.1",
         "typescript": "^5.3.3",
-        "webpack": "^5.90.2"
+        "webpack": "^5.90.2",
+        "webpack-cli": "^5.1.4"
     },
     "dependencies": {
         "cross-env": "^7.0.3",

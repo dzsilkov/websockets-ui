@@ -1,7 +1,7 @@
 import path from "path";
 
 module.exports = {
-    entry: "./src/index",
+    entry: "./index.ts",
     target: "node",
     output: {
         path: path.join(__dirname, "dist"),

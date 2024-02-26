@@ -13,8 +13,6 @@ export const addShips = (ships: Ship[]): string[][] => {
 
             if (vertical) {
                 // @ts-ignore: Unreachable code error
-                // board[x][i] = '1';
-
                 board[x][i] = {
                     x,
                     y,
@@ -26,7 +24,6 @@ export const addShips = (ships: Ship[]): string[][] => {
                 };
             } else {
                 // @ts-ignore: Unreachable code error
-                // board[i][y] = '1';
                 board[i][y] = {
                     x,
                     y,
@@ -40,6 +37,5 @@ export const addShips = (ships: Ship[]): string[][] => {
 
         }
     });
-    console.table(board);
     return board;
 };

@@ -1,4 +1,5 @@
 import {WebSocket} from 'ws';
+import {Players} from '../db/players';
 
 export type Player = {
     id: number;
@@ -6,6 +7,7 @@ export type Player = {
     password: string;
     clientId: string;
     wins: number;
+    client: WebSocket
 }
 
 export type PlayerDto = {
@@ -16,7 +18,7 @@ export type PlayerDto = {
 export type Room = {
     id: number;
     players: Player[];
-    game: Game;
+    game: Game | {};
 }
 
 export type Game = {
@@ -29,9 +31,9 @@ export type GamePlayers = {
     id: GamePlayer
 }
 
-export type GamePlayer = {
-    id: string;
-    board: Board
+export type GamePlayer = Players & {
+    board: Board;
+    turn: number;
 }
 
 export type Board = {
@@ -40,7 +42,6 @@ export type Board = {
 }
 
 export type Client = WebSocket & { id: string }
-export type Clients = { id: Client } | {}
 
 export enum CommandsType {
     Reg = 'reg',
@@ -98,3 +99,6 @@ export type BoardShip = {
     direction: ShipDirection,
     attackStatus: AttackStatus,
 }
+
+export type Coordinates = [number, number];
+
