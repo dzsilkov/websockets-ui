@@ -15,7 +15,7 @@ export class Players {
 
     add({name, password}: PlayerDto, ws): Player {
         console.log(name, password);
-        const player = {name, password, id: this.countId++, clientId: ws.id};
+        const player = {name, password, id: this.countId++, clientId: ws.id, wins: 0};
         this.players.set(name, player);
 
         return player;

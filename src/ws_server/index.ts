@@ -1,25 +1,34 @@
-import {WebSocket, WebSocketServer} from 'ws';
+import {WebSocketServer} from 'ws';
 import {randomUUID} from 'crypto';
 import players from '../db/players';
 import rooms from '../db/rooms';
-import {AttackStatus, CommandsType} from '../models/models';
+import {AttackStatus, Client, Clients, CommandsType} from '../models/models';
 import {createBoard} from '../db/game-field';
+import games from '../db/games';
 
-const clients = {};
-const games = {};
+const clients: Clients = {};
+// const addClient = (clients: Clients, client: Client) => {
+//     const id = randomUUID();
+//     client.id = id;
+//     clients[id] = client;
+//     return clients;
+// };
 
 export const webSocketServer = (port: number) => {
     const wss = new WebSocketServer({port});
     console.log(`wss server starts ${port}`);
 
-    wss.on('connection', (ws: WebSocket & { id: string }) => {
+    wss.on('connection', (ws: Client) => {
         const id = randomUUID();
         ws.id = id;
         clients[id] = ws;
+
+        // addClient(clients, ws);
         console.log(`new client ${ws.id}`);
 
         ws.on('message', (message: string) => {
             const request = JSON.parse(message);
+            console.log('message', JSON.parse(message));
             try {
                 handleRequest(request.type)(ws, request);
             } catch (e) {
@@ -28,7 +37,7 @@ export const webSocketServer = (port: number) => {
         });
 
         ws.on('close', () => {
-            delete clients[id];
+            delete clients[ws.id];
             console.log(`client ${id} closed`);
         });
     });
@@ -37,15 +46,19 @@ export const webSocketServer = (port: number) => {
 export const handleRequest = (type) => {
     return {
         [CommandsType.Reg]: (ws, request) => handleRegRequest(ws, request),
-        [CommandsType.CreateRoom]: (ws, request) => handleCreateRoomRequest(ws, request),
+        [CommandsType.CreateRoom]: (ws, request) => handleCreateRoom(ws, request),
         [CommandsType.AddUserToRoom]: (ws, request) => addUserToRoomRequest(ws, request),
         [CommandsType.AddShips]: (ws, request) => addShipsRequest(ws, request),
-        [CommandsType.Attack]: (ws, request) => attackRequest(ws, request)
+        [CommandsType.Attack]: (ws, request) => attackRequest(ws, request),
+        [CommandsType.SinglePlay]: (ws, request) => handleSinglePlay(ws, request)
     }[type];
 };
 
+export const handleSinglePlay = (_, request) => {
+    console.log('REQVEST', request);
+};
+
 export const handleRegRequest = (ws, request) => {
-    console.log(request);
     const data = JSON.parse(request.data);
     const isPlayerExist = players.isPlayerExist(data);
     if (!isPlayerExist) {
@@ -81,27 +94,34 @@ export const handleRegRequest = (ws, request) => {
     };
 
     ws.send(JSON.stringify(responseData));
-    console.log(players);
     updateRoom(ws);
-    updateWinners(ws);
+    updateWinners(ws, data.name, 0);
     console.log(rooms);
 };
 
-export const handleCreateRoomRequest = (ws, request) => {
-    console.log(request);
-    rooms.add([players.getByClientId(ws.id)]);
-    updateRoom(ws);
-    updateWinners(ws);
+export const handleCreateRoom = (ws: Client, _) => {
+    const player = players.getByClientId(ws.id);
+    if (!player) {
+        return;
+    }
+    try {
+        rooms.createRoom(player);
+        updateRoom(ws);
+        updateWinners(ws, player.name, player.wins);
+    } catch (e) {
+        console.log(e);
+        return;
+    }
+
 };
 
 const updateRoom = (ws) => {
-    const availableRooms = rooms.getAll().filter(room => room.players.length === 1);
-    console.log('availableRooms', availableRooms);
+    const availableRooms = rooms.getAvailableRooms();
+
     if (availableRooms.length) {
         ws.send(JSON.stringify({
             type: CommandsType.UpdateRoom,
             data: JSON.stringify(availableRooms.map(room => {
-                console.log('available_players', room.players);
                 const roomUsers = room.players.map(player => ({
                     name: player.name,
                     index: player.id
@@ -114,7 +134,6 @@ const updateRoom = (ws) => {
             })),
             id: 0
         }));
-
     } else {
         ws.send(JSON.stringify({
             type: CommandsType.UpdateRoom,
@@ -128,32 +147,37 @@ const updateRoom = (ws) => {
 
 };
 
-const updateWinners = (ws) => {
-    const winners = [];
+const updateWinners = (ws, name: string, wins: number) => {
     ws.send(JSON.stringify({
         type: CommandsType.UpdateWinners,
-        data: JSON.stringify(winners),
+        data: JSON.stringify([
+            name,
+            wins
+        ]),
         id: 0
     }));
 };
 
-
 const addUserToRoomRequest = (ws, request) => {
-    console.log('addUserToRoomRequest', request);
-    const data = JSON.parse(request.data);
-    console.log('data', request.data);
+    const {indexRoom} = JSON.parse(request.data);
     const player = players.getByClientId(ws.id);
-    rooms.addPlayer(player, data.indexRoom);
-    console.log('rooms', rooms);
 
-    updateRoom(ws);
+    if (!player) {
+        return;
+    }
 
+    try {
+        rooms.addPlayer(player, indexRoom);
+        updateRoom(ws);
+        createGame(indexRoom);
+    } catch (e) {
+        console.log(e);
+        return;
+    }
+};
 
-    let gameId = 0;
-    const game = {id: gameId, players: {}};
-    games[game.id] = game;
-    gameId++;
-
+const createGame = (indexRoom: number) => {
+    const game = games.createGame(indexRoom);
     for (const id in clients) {
         const player = players.getByClientId(id);
         if (player) {
@@ -171,11 +195,8 @@ const addUserToRoomRequest = (ws, request) => {
 };
 
 const addShipsRequest = (_, request) => {
-    console.log('addShipsRequest', request);
     const data = JSON.parse(request.data);
-    console.log('data', data);
-
-    const game = games[data.gameId];
+    const game = games.get(data.gameId);
     const gamePlayers = game.players;
 
     if (Object.keys(gamePlayers).length <= 2) {
@@ -196,13 +217,7 @@ const addShipsRequest = (_, request) => {
                         ),
                         id: 0
                     }));
-                }
-            }
 
-            for (const id in clients) {
-                const player = players.getByClientId(id);
-
-                if (player) {
                     clients[id].send(JSON.stringify({
                         type: CommandsType.Turn,
                         data: JSON.stringify({
@@ -214,6 +229,21 @@ const addShipsRequest = (_, request) => {
                 }
             }
 
+            // for (const id in clients) {
+            //     const player = players.getByClientId(id);
+            //
+            //     if (player) {
+            //         clients[id].send(JSON.stringify({
+            //             type: CommandsType.Turn,
+            //             data: JSON.stringify({
+            //                     currentPlayerIndex: 1,
+            //                 }
+            //             ),
+            //             id: 0
+            //         }));
+            //     }
+            // }
+
         }
     }
 
@@ -222,15 +252,22 @@ const addShipsRequest = (_, request) => {
 
 export const attackRequest = (ws, request) => {
     const {x, y, gameId, indexPlayer} = JSON.parse(request.data);
-    const {players: gameP} = games[gameId];
-    const enemyKey = Object.keys(gameP).filter(key => key !== indexPlayer.toString());
-    const {board: {board}} = gameP[enemyKey];
+    const {players: gameP} = games.get(gameId);
+    const [enemyId] = Object.keys(gameP).filter(key => key !== indexPlayer.toString());
+    if (!enemyId) {
+        return;
+    }
+    const {board: {board}} = gameP[enemyId];
 
     if (board[x][y] === 'o' || board[x][y].attackStatus === AttackStatus.Shot) {
         return;
     }
 
     const statusAttack = attackStatusGet(request);
+
+    if (!statusAttack) {
+        return;
+    }
 
     for (const id in clients) {
         const player = players.getByClientId(id);
@@ -255,15 +292,16 @@ export const attackRequest = (ws, request) => {
     }
 
 
+    const {players: gamePlayers} = games.get(gameId);
+    const gamePlayer = gamePlayers[indexPlayer];
 
-    const game = games[gameId];
-    const gamePlayers = game.players;
-
-    if (checkWinner(gamePlayers[indexPlayer].board)) {
+    if (checkWinner(gamePlayer.board)) {
         for (const id in clients) {
-            const player = players.getByClientId(id);
+            let player = players.getByClientId(id);
 
             if (player) {
+
+                player = {...player, wins: player.wins++}
 
                 clients[id].send(JSON.stringify({
                     type: CommandsType.Finish,
@@ -273,10 +311,18 @@ export const attackRequest = (ws, request) => {
                     ),
                     id: 0
                 }));
+
             }
         }
 
-        updateWinners(ws);
+        console.log('WINNER', gamePlayer);
+        const player = players.getByClientId(indexPlayer);
+
+        if (player) {
+            updateWinners(ws, player.name, player.wins++);
+            rooms.deleteRoom(games.get(gameId).roomId);
+            games.deleteGame(gameId);
+        }
     }
 
     for (const id in clients) {
@@ -295,11 +341,14 @@ export const attackRequest = (ws, request) => {
     }
 };
 
-const attackStatusGet = (request): AttackStatus => {
+const attackStatusGet = (request): AttackStatus | undefined => {
     const {x, y, gameId, indexPlayer} = JSON.parse(request.data);
-    const {players: gamePlayers} = games[gameId];
-    const enemyKey = Object.keys(gamePlayers).filter(key => key !== indexPlayer.toString());
-    const {board: {board}} = gamePlayers[enemyKey];
+    const {players: gamePlayers} = games.get(gameId);
+    const [enemyId] = Object.keys(gamePlayers).filter(key => key !== indexPlayer.toString());
+    if (!enemyId) {
+        return;
+    }
+    const {board: {board}} = gamePlayers[enemyId];
 
     if (board[x][y] === '-') {
         board[x][y] = 'o';

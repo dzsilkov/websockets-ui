@@ -1,8 +1,11 @@
+import {WebSocket} from 'ws';
+
 export type Player = {
     id: number;
     name: string;
     password: string;
     clientId: string;
+    wins: number;
 }
 
 export type PlayerDto = {
@@ -13,7 +16,31 @@ export type PlayerDto = {
 export type Room = {
     id: number;
     players: Player[];
+    game: Game;
 }
+
+export type Game = {
+    id: number;
+    players: GamePlayers | {};
+    roomId: number;
+}
+
+export type GamePlayers = {
+    id: GamePlayer
+}
+
+export type GamePlayer = {
+    id: string;
+    board: Board
+}
+
+export type Board = {
+    board: string[][],
+    shipCount: number
+}
+
+export type Client = WebSocket & { id: string }
+export type Clients = { id: Client } | {}
 
 export enum CommandsType {
     Reg = 'reg',
@@ -28,6 +55,7 @@ export enum CommandsType {
     RandomAttack = 'randomAttack',
     Turn = 'turn',
     Finish = 'finish',
+    SinglePlay = 'single_play',
 }
 
 export enum AttackStatus {

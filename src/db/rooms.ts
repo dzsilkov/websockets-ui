@@ -14,19 +14,24 @@ export class Rooms {
         return Rooms.instance;
     }
 
-    add(players: (Player | null)[]): Room | undefined {
-        if (!players || !players.length || players.some(player => player === null)) {
-            return;
+    createRoom(player: Player): Room {
+        if (this.playerCreatesRoom(player)) {
+            throw new Error('Player already have created room');
         }
-        const room: Room = <Room>{id: this.countId++, players};
+
+        const room: Room = <Room>{id: this.countId++, players: [player]};
         this.rooms.set(room.id, room);
+
         return room;
     }
 
-    addPlayer(player: Player | null, roomId: number) {
+    addPlayer(player: Player, roomId: number): void {
+        if (this.playerInTheRoom(player, roomId)) {
+            throw new Error('Player already added in the room');
+        }
         let room = this.get(roomId);
 
-        if (room && player) {
+        if (room) {
             room = {...room, players: [...room.players, player]};
             this.rooms.set(roomId, <Room>room);
         }
@@ -38,6 +43,33 @@ export class Rooms {
 
     getAll(): Room[] {
         return Array.from(this.rooms.values());
+    }
+
+    getAvailableRooms(): Room[] {
+        return this.getAll().filter(room => room.players.length === 1);
+    }
+
+    playerCreatesRoom(player: Player): boolean {
+        let playerInRoom = false;
+        this.getAvailableRooms().forEach(({players}) => {
+            if (players.find(({id}) => id === player.id)) {
+                playerInRoom = true;
+            }
+        });
+        return playerInRoom;
+    }
+
+    playerInTheRoom(player: Player, roomId: number): boolean {
+        const room = this.get(roomId);
+        if (room) {
+            return !!(room.players.find(({id}) => id === player.id));
+        }
+
+        return false;
+    }
+
+    deleteRoom(roomId: number) {
+        this.rooms.delete(roomId);
     }
 }
 
